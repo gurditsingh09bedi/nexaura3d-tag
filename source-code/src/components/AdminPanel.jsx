@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
 import { isBackendConfigured, saveTagsToGitHub, verifyToken } from "../data/useTags";
+import { saveClientsToGitHub } from "../data/useClients";
 
 const ACCENT_PRESETS = ["#4DFCFF", "#E8ECF1", "#C9CDD3", "#FF6B6B", "#FFC24D", "#7CFF9E"];
 
-export default function AdminPanel({ open, onClose, tags, onTagsChanged }) {
+export default function AdminPanel({ open, onClose, tags, onTagsChanged, clients, onClientsChanged }) {
+  const [tab, setTab] = useState("tags"); // "tags" | "clients"
   const [token, setToken] = useState(() => localStorage.getItem("nexaura_gh_token") || "");
   const [remember, setRemember] = useState(true);
   const [checking, setChecking] = useState(false);
@@ -21,6 +23,17 @@ export default function AdminPanel({ open, onClose, tags, onTagsChanged }) {
     metalness: 0.9,
     roughness: 0.2,
   });
+
+  const [clientForm, setClientForm] = useState({
+    id: "",
+    name: "",
+    category: "",
+    price: "",
+    description: "",
+    url: "",
+    photo: "",
+  });
+  const [clientPhotoFile, setClientPhotoFile] = useState(null);
 
   useEffect(() => {
     if (open && token) {
@@ -82,6 +95,62 @@ export default function AdminPanel({ open, onClose, tags, onTagsChanged }) {
     setSaving(false);
   }
 
+  function handleClientPhoto(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const maxDim = 700;
+        let w = img.width, h = img.height;
+        if (w > h && w > maxDim) { h = Math.round(h * (maxDim / w)); w = maxDim; }
+        else if (h > maxDim) { w = Math.round(w * (maxDim / h)); h = maxDim; }
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        setClientForm((f) => ({ ...f, photo: canvas.toDataURL("image/jpeg", 0.72) }));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+    setClientPhotoFile(file);
+  }
+
+  async function handleAddClient(e) {
+    e.preventDefault();
+    if (!clientForm.name.trim()) { setMsg({ type: "err", text: "Give the client a name." }); return; }
+    const id = clientForm.id.trim() || clientForm.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    const newClient = { ...clientForm, id };
+    const updated = [...clients, newClient];
+    setSaving(true);
+    setMsg({ type: "info", text: "Saving to GitHub..." });
+    try {
+      await saveClientsToGitHub(updated, token);
+      setMsg({ type: "ok", text: "Saved — live on the site within a minute." });
+      onClientsChanged(updated);
+      setClientForm({ id: "", name: "", category: "", price: "", description: "", url: "", photo: "" });
+      setClientPhotoFile(null);
+    } catch (err) {
+      setMsg({ type: "err", text: err.message });
+    }
+    setSaving(false);
+  }
+
+  async function handleRemoveClient(id) {
+    const updated = clients.filter((c) => c.id !== id);
+    setSaving(true);
+    setMsg({ type: "info", text: "Removing..." });
+    try {
+      await saveClientsToGitHub(updated, token);
+      setMsg({ type: "ok", text: "Removed and committed to GitHub." });
+      onClientsChanged(updated);
+    } catch (err) {
+      setMsg({ type: "err", text: err.message });
+    }
+    setSaving(false);
+  }
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
       <div className="glass-strong w-full max-w-lg rounded-2xl p-6 max-h-[85vh] overflow-y-auto">
@@ -105,6 +174,23 @@ export default function AdminPanel({ open, onClose, tags, onTagsChanged }) {
             "bg-cyan-500/10 text-cyan-200"
           }`}>
             {msg.text}
+          </div>
+        )}
+
+        {authed && (
+          <div className="mb-4 flex gap-2 rounded-lg bg-white/5 p-1">
+            <button
+              onClick={() => setTab("tags")}
+              className={`mono-label flex-1 rounded-md py-2 text-[10px] transition-colors ${tab === "tags" ? "bg-[#4DFCFF]/15 text-[#4DFCFF]" : "text-silver/40"}`}
+            >
+              Product Tags ({tags.length})
+            </button>
+            <button
+              onClick={() => setTab("clients")}
+              className={`mono-label flex-1 rounded-md py-2 text-[10px] transition-colors ${tab === "clients" ? "bg-[#4DFCFF]/15 text-[#4DFCFF]" : "text-silver/40"}`}
+            >
+              Clients ({clients.length})
+            </button>
           </div>
         )}
 
@@ -134,63 +220,115 @@ export default function AdminPanel({ open, onClose, tags, onTagsChanged }) {
           </div>
         ) : (
           <>
-            <form onSubmit={handleAdd} className="space-y-3 border-b border-white/10 pb-5">
-              <div className="mono-label text-[10px] text-cyan-200/60">Add a tag</div>
-              <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="Name (e.g. Cobalt)" className="input-sm" />
-              <input value={form.tagline} onChange={(e) => setForm({ ...form, tagline: e.target.value })}
-                placeholder="Tagline (e.g. Bold by design.)" className="input-sm" />
-              <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
-                placeholder="Short description" rows={2} className="input-sm resize-none" />
+            {tab === "tags" && (
+              <>
+                <form onSubmit={handleAdd} className="space-y-3 border-b border-white/10 pb-5">
+                  <div className="mono-label text-[10px] text-cyan-200/60">Add a tag</div>
+                  <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    placeholder="Name (e.g. Cobalt)" className="input-sm" />
+                  <input value={form.tagline} onChange={(e) => setForm({ ...form, tagline: e.target.value })}
+                    placeholder="Tagline (e.g. Bold by design.)" className="input-sm" />
+                  <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
+                    placeholder="Short description" rows={2} className="input-sm resize-none" />
 
-              <div className="grid grid-cols-2 gap-3">
-                <label className="block">
-                  <div className="mono-label mb-1 text-[9px] text-silver/40">Base color</div>
-                  <input type="color" value={form.baseColor} onChange={(e) => setForm({ ...form, baseColor: e.target.value })}
-                    className="h-9 w-full rounded-lg border border-white/10 bg-transparent" />
-                </label>
-                <label className="block">
-                  <div className="mono-label mb-1 text-[9px] text-silver/40">Glow accent</div>
-                  <select value={form.accent} onChange={(e) => setForm({ ...form, accent: e.target.value })} className="input-sm">
-                    {ACCENT_PRESETS.map((c) => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </label>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <label className="block">
-                  <div className="mono-label mb-1 text-[9px] text-silver/40">Metalness ({form.metalness})</div>
-                  <input type="range" min="0" max="1" step="0.05" value={form.metalness}
-                    onChange={(e) => setForm({ ...form, metalness: Number(e.target.value) })} className="w-full" />
-                </label>
-                <label className="block">
-                  <div className="mono-label mb-1 text-[9px] text-silver/40">Roughness ({form.roughness})</div>
-                  <input type="range" min="0" max="1" step="0.05" value={form.roughness}
-                    onChange={(e) => setForm({ ...form, roughness: Number(e.target.value) })} className="w-full" />
-                </label>
-              </div>
-
-              <button type="submit" disabled={saving}
-                className="mono-label w-full rounded-xl bg-gradient-to-r from-[#4DFCFF] to-[#7FE9EC] py-3 text-xs font-semibold text-[#031012]">
-                {saving ? "Saving..." : "Save tag"}
-              </button>
-            </form>
-
-            <div className="mt-4">
-              <div className="mono-label mb-2 text-[10px] text-silver/45">Current tags ({tags.length})</div>
-              <div className="space-y-2">
-                {tags.map((t) => (
-                  <div key={t.id} className="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2">
-                    <div className="flex items-center gap-2">
-                      <span className="h-3 w-3 rounded-sm" style={{ background: t.baseColor }} />
-                      <span className="text-sm text-white">{t.name}</span>
-                    </div>
-                    <button onClick={() => handleRemove(t.id)} disabled={saving}
-                      className="text-xs text-red-300/70 hover:text-red-300">Remove</button>
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="block">
+                      <div className="mono-label mb-1 text-[9px] text-silver/40">Base color</div>
+                      <input type="color" value={form.baseColor} onChange={(e) => setForm({ ...form, baseColor: e.target.value })}
+                        className="h-9 w-full rounded-lg border border-white/10 bg-transparent" />
+                    </label>
+                    <label className="block">
+                      <div className="mono-label mb-1 text-[9px] text-silver/40">Glow accent</div>
+                      <select value={form.accent} onChange={(e) => setForm({ ...form, accent: e.target.value })} className="input-sm">
+                        {ACCENT_PRESETS.map((c) => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </label>
                   </div>
-                ))}
-              </div>
-            </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="block">
+                      <div className="mono-label mb-1 text-[9px] text-silver/40">Metalness ({form.metalness})</div>
+                      <input type="range" min="0" max="1" step="0.05" value={form.metalness}
+                        onChange={(e) => setForm({ ...form, metalness: Number(e.target.value) })} className="w-full" />
+                    </label>
+                    <label className="block">
+                      <div className="mono-label mb-1 text-[9px] text-silver/40">Roughness ({form.roughness})</div>
+                      <input type="range" min="0" max="1" step="0.05" value={form.roughness}
+                        onChange={(e) => setForm({ ...form, roughness: Number(e.target.value) })} className="w-full" />
+                    </label>
+                  </div>
+
+                  <button type="submit" disabled={saving}
+                    className="mono-label w-full rounded-xl bg-gradient-to-r from-[#4DFCFF] to-[#7FE9EC] py-3 text-xs font-semibold text-[#031012]">
+                    {saving ? "Saving..." : "Save tag"}
+                  </button>
+                </form>
+
+                <div className="mt-4">
+                  <div className="mono-label mb-2 text-[10px] text-silver/45">Current tags ({tags.length})</div>
+                  <div className="space-y-2">
+                    {tags.map((t) => (
+                      <div key={t.id} className="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <span className="h-3 w-3 rounded-sm" style={{ background: t.baseColor }} />
+                          <span className="text-sm text-white">{t.name}</span>
+                        </div>
+                        <button onClick={() => handleRemove(t.id)} disabled={saving}
+                          className="text-xs text-red-300/70 hover:text-red-300">Remove</button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {tab === "clients" && (
+              <>
+                <form onSubmit={handleAddClient} className="space-y-3 border-b border-white/10 pb-5">
+                  <div className="mono-label text-[10px] text-cyan-200/60">Add a client</div>
+                  <input required value={clientForm.name} onChange={(e) => setClientForm({ ...clientForm, name: e.target.value })}
+                    placeholder="Client name (e.g. Bright Sun Mortgage)" className="input-sm" />
+                  <input value={clientForm.category} onChange={(e) => setClientForm({ ...clientForm, category: e.target.value })}
+                    placeholder="Category (e.g. Mortgage Broker)" className="input-sm" />
+                  <div className="grid grid-cols-2 gap-3">
+                    <input value={clientForm.price} onChange={(e) => setClientForm({ ...clientForm, price: e.target.value })}
+                      placeholder="Price (e.g. £249)" className="input-sm" />
+                    <input value={clientForm.url} onChange={(e) => setClientForm({ ...clientForm, url: e.target.value })}
+                      placeholder="Live tag URL" className="input-sm" />
+                  </div>
+                  <textarea value={clientForm.description} onChange={(e) => setClientForm({ ...clientForm, description: e.target.value })}
+                    placeholder="Short description" rows={2} className="input-sm resize-none" />
+
+                  <label className="block">
+                    <div className="mono-label mb-1 text-[9px] text-silver/40">Preview photo</div>
+                    <input type="file" accept="image/*" onChange={handleClientPhoto} className="input-sm" />
+                    {clientForm.photo && <img src={clientForm.photo} alt="" className="mt-2 h-24 w-full rounded-lg object-cover" />}
+                  </label>
+
+                  <button type="submit" disabled={saving}
+                    className="mono-label w-full rounded-xl bg-gradient-to-r from-[#4DFCFF] to-[#7FE9EC] py-3 text-xs font-semibold text-[#031012]">
+                    {saving ? "Saving..." : "Save client"}
+                  </button>
+                </form>
+
+                <div className="mt-4">
+                  <div className="mono-label mb-2 text-[10px] text-silver/45">Current clients ({clients.length})</div>
+                  <div className="space-y-2">
+                    {clients.map((c) => (
+                      <div key={c.id} className="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          {c.photo && <img src={c.photo} alt="" className="h-6 w-6 rounded object-cover" />}
+                          <span className="text-sm text-white">{c.name}</span>
+                          {c.price && <span className="text-xs text-[#4DFCFF]">{c.price}</span>}
+                        </div>
+                        <button onClick={() => handleRemoveClient(c.id)} disabled={saving}
+                          className="text-xs text-red-300/70 hover:text-red-300">Remove</button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
           </>
         )}
       </div>

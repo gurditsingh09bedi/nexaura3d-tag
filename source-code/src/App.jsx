@@ -1,16 +1,19 @@
 import { useState } from "react";
 import Hero from "./components/Hero";
 import Lineup from "./components/Lineup";
+import Clients from "./components/Clients";
 import LiveActivity from "./components/LiveActivity";
 import OrderPortal from "./components/OrderPortal";
 import Footer from "./components/Footer";
 import AdminPanel from "./components/AdminPanel";
 import { useTags } from "./data/useTags";
+import { useClients } from "./data/useClients";
 
 export default function App() {
   const [activeTag, setActiveTag] = useState(null);
   const [adminOpen, setAdminOpen] = useState(false);
   const { tags, reload } = useTags();
+  const { clients, reload: reloadClients } = useClients();
 
   const handleSelectTag = (tag) => {
     setActiveTag(tag);
@@ -20,6 +23,7 @@ export default function App() {
     <div className="bg-obsidian">
       <Hero onSelectTag={handleSelectTag} activeTagId={activeTag?.id} tags={tags} />
       <Lineup onSelectTag={handleSelectTag} activeTagId={activeTag?.id} tags={tags} />
+      <Clients clients={clients} />
       <OrderPortal />
       <Footer />
       <LiveActivity />
@@ -29,7 +33,7 @@ export default function App() {
       <button
         onClick={() => setAdminOpen(true)}
         className="fixed bottom-5 right-5 z-30 h-8 w-8 rounded-full border border-white/10 bg-black/40 text-[10px] text-silver/30 backdrop-blur hover:text-cyan-200/70 hover:border-cyan-200/30"
-        title="Manage tags"
+        title="Manage tags & clients"
       >
         ⚙
       </button>
@@ -39,6 +43,8 @@ export default function App() {
         onClose={() => setAdminOpen(false)}
         tags={tags}
         onTagsChanged={() => reload()}
+        clients={clients}
+        onClientsChanged={() => reloadClients()}
       />
     </div>
   );

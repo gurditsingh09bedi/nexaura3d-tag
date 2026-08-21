@@ -8,7 +8,7 @@ import { TAGS as DEFAULT_TAGS } from "../data/tags";
 // nothing breaks — this is purely additive.
 // ============================================================
 export const GH_OWNER = "gurditsingh09bedi";
-export const GH_REPO = "nexaura-3d-showcase";
+export const GH_REPO = "nexaura3d-tag";
 export const GH_BRANCH = "main";
 export const DATA_PATH = "tags.json";
 

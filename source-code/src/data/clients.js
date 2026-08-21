@@ -1,0 +1,31 @@
+// The 3 client tags shown in "Our Clients". Add a new object here (or via
+// the Admin panel's Clients tab) to add another one — no other code needed.
+export const CLIENTS = [
+  {
+    id: "japp-financial",
+    name: "JAPP Financial",
+    category: "Financial Services",
+    price: "£249",
+    description: "Future-Driven Financial Intelligence — a digital business card with instant call, email, website and WhatsApp contact.",
+    url: "https://jappfinancial.github.io/Jass_tag/",
+    photo: "client-thumbs/japp-thumb.jpg",
+  },
+  {
+    id: "nexaura-consultant",
+    name: "Nexaura Consultant Ltd",
+    category: "AI Consultancy",
+    price: "£249",
+    description: "Our own digital business card — AI consultancy, automation, custom software and cloud solutions, with a live neural-network background.",
+    url: "https://nexauraconsultant.github.io/tag_nexaura/",
+    photo: "client-thumbs/nexaura-thumb.jpg",
+  },
+  {
+    id: "esh-driving-school",
+    name: "ESH Driving School",
+    category: "Driving School",
+    price: "£249",
+    description: "Real driving-lesson video background, DVSA-style branding, and one-tap call, WhatsApp, directions and Facebook follow.",
+    url: "#",
+    photo: "client-thumbs/esh-thumb.jpg",
+  },
+];
